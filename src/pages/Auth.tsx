@@ -110,10 +110,6 @@ export default function Auth() {
 
       if (isLogin) {
         if (useMagicLink) {
-          if (!isMagicLinkAdminAllowed) {
-            throw new Error("Magic link login is allowed for admin accounts only.");
-          }
-
           const { error } = await supabase.auth.signInWithOtp({
             email,
             options: { emailRedirectTo: window.location.origin },
@@ -274,23 +270,15 @@ export default function Auth() {
                 )}
 
                 {isLogin && (
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <input
-                        id="useMagicLink"
-                        type="checkbox"
-                        checked={useMagicLink}
-                        disabled={!(isMagicLinkAdminAllowed && email.trim() !== "")}
-                        onChange={(e) => setUseMagicLink(e.target.checked)}
-                        className="h-4 w-4"
-                      />
-                     
-                    </div>
-                    {!isMagicLinkAdminAllowed && email.trim() !== "" && (
-                      <p className="text-xs text-muted-foreground">
-                        Magic link login is limited to admin accounts. Please sign in with your password.
-                      </p>
-                    )}
+                  <div className="flex items-center gap-2">
+                    <input
+                      id="useMagicLink"
+                      type="checkbox"
+                      checked={useMagicLink}
+                      onChange={(e) => setUseMagicLink(e.target.checked)}
+                      className="h-4 w-4"
+                    />
+                    <Label htmlFor="useMagicLink">Sign in with magic link</Label>
                   </div>
                 )}
 
