@@ -15,14 +15,15 @@ export default function Auth() {
   const [fullName, setFullName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [is2FAPending, setIs2FAPending] = useState(false);
-  const [otp, setOtp] = useState("");
-  const [generatedOtp, setGeneratedOtp] = useState<string | null>(null);
-  const [pendingAdminEmail, setPendingAdminEmail] = useState("");
-  const [pendingAdminPassword, setPendingAdminPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [useMagicLink, setUseMagicLink] = useState(false);
+  const [is2FAPending, setIs2FAPending] = useState(false);
+  const [generatedOtp, setGeneratedOtp] = useState<string | null>(null);
+  const [pendingAdminEmail, setPendingAdminEmail] = useState("");
+  const [pendingAdminPassword, setPendingAdminPassword] = useState("");
+  const [otp, setOtp] = useState("");
 
   const passwordRequirements = [
     { regex: /.{8,}/, text: "At least 8 characters" },
@@ -31,6 +32,13 @@ export default function Auth() {
     { regex: /[0-9]/, text: "At least 1 number" },
     { regex: /[\W_]/, text: "At least 1 special character" },
   ];
+
+  const adminMagicLinkEmails = (import.meta.env.VITE_ADMIN_MAGIC_LINK_EMAILS ?? "")
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+
+  const isMagicLinkAdminAllowed = email && adminMagicLinkEmails.includes(email.trim().toLowerCase());
 
   const sendOtpEmail = async (to: string, code: string) => {
     if (!(window as any).Email?.send) {
@@ -101,6 +109,25 @@ export default function Auth() {
       }
 
       if (isLogin) {
+        if (useMagicLink) {
+          if (!isMagicLinkAdminAllowed) {
+            throw new Error("Magic link login is allowed for admin accounts only.");
+          }
+
+          const { error } = await supabase.auth.signInWithOtp({
+            email,
+            options: { emailRedirectTo: window.location.origin },
+          });
+          if (error) throw error;
+
+          toast({
+            title: "Magic link sent",
+            description: `An authentication link has been sent to ${email}. Check your inbox to continue.`,
+          });
+          setLoading(false);
+          return;
+        }
+
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
 
@@ -123,9 +150,7 @@ export default function Auth() {
           setPendingAdminPassword(password);
           setIs2FAPending(true);
 
-          // Send code to admin email using SMTPJS (Gmail)
           await sendOtpEmail(email, code);
-
           await supabase.auth.signOut();
 
           toast({
@@ -248,6 +273,27 @@ export default function Auth() {
                   </div>
                 )}
 
+                {isLogin && (
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <input
+                        id="useMagicLink"
+                        type="checkbox"
+                        checked={useMagicLink}
+                        disabled={!(isMagicLinkAdminAllowed && email.trim() !== "")}
+                        onChange={(e) => setUseMagicLink(e.target.checked)}
+                        className="h-4 w-4"
+                      />
+                     
+                    </div>
+                    {!isMagicLinkAdminAllowed && email.trim() !== "" && (
+                      <p className="text-xs text-muted-foreground">
+                        Magic link login is limited to admin accounts. Please sign in with your password.
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
                   <div className="relative">
@@ -264,48 +310,50 @@ export default function Auth() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <div className="relative">
-                    <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="pl-9 pr-10"
-                      required
-                      minLength={isLogin ? 6 : 8}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  {!isLogin && (
-                    <div className="space-y-1.5 pt-1">
-                      {passwordRequirements.map((req, index) => {
-                        const isValid = req.regex.test(password);
-                        return (
-                          <div key={index} className="flex items-center text-xs">
-                            {isValid ? (
-                              <CheckCircle2 className="w-3.5 h-3.5 mr-2 text-green-500" />
-                            ) : (
-                              <Circle className="w-3.5 h-3.5 mr-2 text-muted-foreground" />
-                            )}
-                            <span className={isValid ? "text-green-500 font-medium" : "text-muted-foreground"}>
-                              {req.text}
-                            </span>
-                          </div>
-                        );
-                      })}
+                {!useMagicLink && (
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Password</Label>
+                    <div className="relative">
+                      <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="pl-9 pr-10"
+                        required={!useMagicLink}
+                        minLength={6}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
                     </div>
-                  )}
-                </div>
+                    {!isLogin && (
+                      <div className="space-y-1.5 pt-1">
+                        {passwordRequirements.map((req, index) => {
+                          const isValid = req.regex.test(password);
+                          return (
+                            <div key={index} className="flex items-center text-xs">
+                              {isValid ? (
+                                <CheckCircle2 className="w-3.5 h-3.5 mr-2 text-green-500" />
+                              ) : (
+                                <Circle className="w-3.5 h-3.5 mr-2 text-muted-foreground" />
+                              )}
+                              <span className={isValid ? "text-green-500 font-medium" : "text-muted-foreground"}>
+                                {req.text}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {!isLogin && (
                   <div className="space-y-2">
