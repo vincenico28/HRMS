@@ -32,6 +32,20 @@ export default function Auth() {
     { regex: /[\W_]/, text: "At least 1 special character" },
   ];
 
+  const sendOtpEmail = async (to: string, code: string) => {
+    if (!(window as any).Email?.send) {
+      throw new Error("Email service not loaded. Ensure smtp.js is present in index.html");
+    }
+
+    await (window as any).Email.send({
+      SecureToken: import.meta.env.VITE_SMTPJS_SECURE_TOKEN,
+      To: to,
+      From: import.meta.env.VITE_OTP_FROM,
+      Subject: "Your HRMS admin login OTP",
+      Body: `Your one-time code is ${code}. It expires in 5 minutes.`,
+    });
+  };
+
   const handle2FASubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!generatedOtp) {
@@ -109,11 +123,14 @@ export default function Auth() {
           setPendingAdminPassword(password);
           setIs2FAPending(true);
 
+          // Send code to admin email using SMTPJS (Gmail)
+          await sendOtpEmail(email, code);
+
           await supabase.auth.signOut();
 
           toast({
             title: "Admin 2FA needed",
-            description: `Enter your 2FA code. (Simulated code: ${code})`,
+            description: "A 2FA code has been sent to your email. Enter it to complete login.",
           });
 
           setLoading(false);
