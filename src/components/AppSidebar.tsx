@@ -16,6 +16,8 @@ import {
   GraduationCap,
   UserPlus,
   Megaphone,
+  DollarSign,
+  Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -24,7 +26,11 @@ const allNavItems = [
   { title: "Dashboard", path: "/", icon: LayoutDashboard, roles: ["admin", "hr_manager", "employee"] },
   { title: "Employees", path: "/employees", icon: Users, roles: ["admin", "hr_manager"] },
   { title: "Departments", path: "/departments", icon: Building2, roles: ["admin", "hr_manager"] },
+  { title: "Payroll", path: "/payroll", icon: DollarSign, roles: ["admin", "hr_manager"] },
+  { title: "Salary Structures", path: "/salary-structures", icon: Wallet, roles: ["admin", "hr_manager"] },
+  { title: "Employee Salaries", path: "/employee-salaries", icon: DollarSign, roles: ["admin", "hr_manager"] },
   { title: "Attendance", path: "/attendance", icon: Clock, roles: ["admin", "hr_manager", "employee"] },
+  { title: "Expenses", path: "/expenses", icon: Wallet, roles: ["admin", "hr_manager", "employee"] },
   { title: "Leave", path: "/leave", icon: CalendarDays, roles: ["admin", "hr_manager", "employee"] },
   { title: "Notifications", path: "/notifications", icon: Bell, roles: ["admin", "hr_manager", "employee"] },
   { title: "Activity Logs", path: "/activity-logs", icon: Shield, roles: ["admin"] },

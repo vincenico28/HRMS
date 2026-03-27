@@ -65,7 +65,7 @@ export interface ActivityLog {
   id: string;
   user_id: string | null;
   action: string;
-  details: any;
+  details: Record<string, unknown> | null;
   ip_address: string | null;
   created_at: string;
 }
@@ -320,3 +320,183 @@ export function useDashboardStats() {
     },
   });
 }
+
+// ─── Payroll (Salary Structures, Employee Salaries, Payslips) ───
+export interface SalaryStructure {
+  id: string;
+  name: string;
+  min_salary: number;
+  max_salary: number;
+  allowances: Record<string, number> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EmployeeSalary {
+  id: string;
+  employee_id: string;
+  salary_structure_id: string;
+  base_salary: number;
+  allowances: Record<string, number> | null;
+  effective_from: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  employees?: { full_name: string; employee_id: string };
+  salary_structures?: { name: string };
+}
+
+export interface Payslip {
+  id: string;
+  employee_id: string;
+  month: string;
+  base_salary: number;
+  allowances: Record<string, number> | null;
+  deductions: number;
+  net_pay: number;
+  generated_by: string | null;
+  created_at: string;
+  updated_at: string;
+  employees?: { full_name: string; employee_id: string };
+}
+
+export function useSalaryStructures() {
+  return useQuery({
+    queryKey: ["salary_structures"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("salary_structures").select("*").order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as SalaryStructure[];
+    },
+  });
+}
+
+export function useCreateSalaryStructure() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (structure: Omit<SalaryStructure, "id" | "created_at" | "updated_at">) => {
+      const { data, error } = await supabase.from("salary_structures").insert(structure).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["salary_structures"] }),
+  });
+}
+
+export function useUpdateSalaryStructure() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: Partial<SalaryStructure> & { id: string }) => {
+      const { data, error } = await supabase.from("salary_structures").update(updates).eq("id", id).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["salary_structures"] }),
+  });
+}
+
+export function useDeleteSalaryStructure() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("salary_structures").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["salary_structures"] }),
+  });
+}
+
+export function useEmployeeSalaries() {
+  return useQuery({
+    queryKey: ["employee_salaries"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("employee_salaries")
+        .select("*, employees(full_name, employee_id), salary_structures(name)")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as EmployeeSalary[];
+    },
+  });
+}
+
+export function useCreateEmployeeSalary() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (salary: Omit<EmployeeSalary, "id" | "created_at" | "updated_at" | "employees" | "salary_structures">) => {
+      const { data, error } = await supabase.from("employee_salaries").insert(salary).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["employee_salaries"] }),
+  });
+}
+
+export function usePayslips() {
+  return useQuery({
+    queryKey: ["payslips"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("payslips")
+        .select("*, employees(full_name, employee_id)")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as Payslip[];
+    },
+  });
+}
+
+export function useCreatePayslip() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payslip: Omit<Payslip, "id" | "created_at" | "updated_at">) => {
+      const { data, error } = await supabase.from("payslips").insert(payslip).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["payslips"] }),
+  });
+}
+
+// ─── Expense Claims ───
+export interface ExpenseClaim {
+  id: string;
+  employee_id: string;
+  amount: number;
+  description: string;
+  receipt_url: string | null;
+  status: string;
+  submitted_at: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  employees?: { full_name: string; employee_id: string };
+}
+
+export function useExpenseClaims() {
+  return useQuery({
+    queryKey: ["expense_claims"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("expense_claims")
+        .select("*, employees(full_name, employee_id)")
+        .order("submitted_at", { ascending: false });
+      if (error) throw error;
+      return data as ExpenseClaim[];
+    },
+  });
+}
+
+export function useCreateExpenseClaim() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (claim: Omit<ExpenseClaim, "id" | "created_at" | "updated_at">) => {
+      const { data, error } = await supabase.from("expense_claims").insert(claim).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["expense_claims"] }),
+  });
+}
+

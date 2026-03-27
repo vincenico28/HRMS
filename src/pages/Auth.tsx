@@ -15,6 +15,11 @@ export default function Auth() {
   const [fullName, setFullName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [is2FAPending, setIs2FAPending] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [generatedOtp, setGeneratedOtp] = useState<string | null>(null);
+  const [pendingAdminEmail, setPendingAdminEmail] = useState("");
+  const [pendingAdminPassword, setPendingAdminPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -26,6 +31,37 @@ export default function Auth() {
     { regex: /[0-9]/, text: "At least 1 number" },
     { regex: /[\W_]/, text: "At least 1 special character" },
   ];
+
+  const handle2FASubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!generatedOtp) {
+      toast({ title: "Error", description: "2FA code not generated", variant: "destructive" });
+      return;
+    }
+    if (otp.trim() !== generatedOtp) {
+      toast({ title: "Invalid 2FA code", description: "Please enter the correct code.", variant: "destructive" });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email: pendingAdminEmail, password: pendingAdminPassword });
+      if (error) throw error;
+
+      setIs2FAPending(false);
+      setGeneratedOtp(null);
+      setOtp("");
+      setPendingAdminEmail("");
+      setPendingAdminPassword("");
+
+      toast({ title: "2FA Success", description: "Admin login is now complete." });
+      navigate("/");
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,10 +76,10 @@ export default function Auth() {
         }
         const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
         if (!strongPasswordRegex.test(password)) {
-          toast({ 
-            title: "Weak Password", 
-            description: "Password must be at least 8 characters long, contain an uppercase letter, a lowercase letter, a number, and a special character.", 
-            variant: "destructive" 
+          toast({
+            title: "Weak Password",
+            description: "Password must be at least 8 characters long, contain an uppercase letter, a lowercase letter, a number, and a special character.",
+            variant: "destructive",
           });
           setLoading(false);
           return;
@@ -51,8 +87,39 @@ export default function Auth() {
       }
 
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+
+        const userId = data.user?.id;
+        if (!userId) throw new Error("User not found after login");
+
+        const { data: roleData, error: roleError } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userId)
+          .maybeSingle();
+
+        if (roleError) throw roleError;
+
+        const role = roleData?.role;
+        if (role === "admin") {
+          const code = Math.floor(100000 + Math.random() * 900000).toString();
+          setGeneratedOtp(code);
+          setPendingAdminEmail(email);
+          setPendingAdminPassword(password);
+          setIs2FAPending(true);
+
+          await supabase.auth.signOut();
+
+          toast({
+            title: "Admin 2FA needed",
+            description: `Enter your 2FA code. (Simulated code: ${code})`,
+          });
+
+          setLoading(false);
+          return;
+        }
+
         navigate("/");
       } else {
         const { error } = await supabase.auth.signUp({
@@ -123,124 +190,153 @@ export default function Auth() {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {!isLogin && (
-              <div className="space-y-2">
-                <Label htmlFor="fullName">Full Name</Label>
-                <div className="relative">
-                  <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <form onSubmit={is2FAPending ? handle2FASubmit : handleSubmit} className="space-y-5">
+            {is2FAPending ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="otp">2FA Code</Label>
                   <Input
-                    id="fullName"
-                    placeholder="John Smith"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="pl-9"
+                    id="otp"
+                    type="text"
+                    placeholder="Enter 6-digit code"
+                    maxLength={6}
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
                     required
                   />
                 </div>
-              </div>
-            )}
+                <p className="text-muted-foreground text-sm">
+                  A one-time verification code has been sent to your email. Use it to complete login.
+                </p>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} Verify 2FA
+                </Button>
+              </>
+            ) : (
+              <>
+                {!isLogin && (
+                  <div className="space-y-2">
+                    <Label htmlFor="fullName">Full Name</Label>
+                    <div className="relative">
+                      <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="fullName"
+                        placeholder="John Smith"
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        className="pl-9"
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
 
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <div className="relative">
-                <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="you@company.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="pl-9"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <div className="relative">
-                <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pl-9 pr-10"
-                  required
-                  minLength={isLogin ? 6 : 8}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-              {!isLogin && (
-                <div className="space-y-1.5 pt-1">
-                  {passwordRequirements.map((req, index) => {
-                    const isValid = req.regex.test(password);
-                    return (
-                      <div key={index} className="flex items-center text-xs">
-                        {isValid ? (
-                          <CheckCircle2 className="w-3.5 h-3.5 mr-2 text-green-500" />
-                        ) : (
-                          <Circle className="w-3.5 h-3.5 mr-2 text-muted-foreground" />
-                        )}
-                        <span className={isValid ? "text-green-500 font-medium" : "text-muted-foreground"}>
-                          {req.text}
-                        </span>
-                      </div>
-                    );
-                  })}
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="you@company.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="pl-9"
+                      required
+                    />
+                  </div>
                 </div>
-              )}
-            </div>
 
-            {!isLogin && (
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    id="confirmPassword"
-                    type={showConfirmPassword ? "text" : "password"}
-                    placeholder="••••••••"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="pl-9 pr-10"
-                    required
-                    minLength={8}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="pl-9 pr-10"
+                      required
+                      minLength={isLogin ? 6 : 8}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  {!isLogin && (
+                    <div className="space-y-1.5 pt-1">
+                      {passwordRequirements.map((req, index) => {
+                        const isValid = req.regex.test(password);
+                        return (
+                          <div key={index} className="flex items-center text-xs">
+                            {isValid ? (
+                              <CheckCircle2 className="w-3.5 h-3.5 mr-2 text-green-500" />
+                            ) : (
+                              <Circle className="w-3.5 h-3.5 mr-2 text-muted-foreground" />
+                            )}
+                            <span className={isValid ? "text-green-500 font-medium" : "text-muted-foreground"}>
+                              {req.text}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
 
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              {isLogin ? "Sign In" : "Create Account"}
-            </Button>
+                {!isLogin && (
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword">Confirm Password</Label>
+                    <div className="relative">
+                      <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="confirmPassword"
+                        type={showConfirmPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="pl-9 pr-10"
+                        required
+                        minLength={8}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  {isLogin ? "Sign In" : "Create Account"}
+                </Button>
+              </>
+            )}
           </form>
 
-          <p className="text-center text-sm text-muted-foreground">
-            {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
-            <button
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-primary hover:underline font-medium"
-            >
-              {isLogin ? "Sign up" : "Sign in"}
-            </button>
-          </p>
+          {!is2FAPending ? (
+            <p className="text-center text-sm text-muted-foreground">
+              {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
+              <button
+                onClick={() => setIsLogin(!isLogin)}
+                className="text-primary hover:underline font-medium"
+              >
+                {isLogin ? "Sign up" : "Sign in"}
+              </button>
+            </p>
+          ) : (
+            <p className="text-center text-sm text-muted-foreground">Enter the 2FA code to continue as admin.</p>
+          )}
         </div>
       </div>
     </div>

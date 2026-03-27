@@ -21,6 +21,10 @@ import Training from "./pages/Training";
 import Recruitment from "./pages/Recruitment";
 import Announcements from "./pages/Announcements";
 import UserManagement from "./pages/UserManagement";
+import SalaryStructures from "./pages/Payroll/SalaryStructures";
+import EmployeeSalaries from "./pages/Payroll/EmployeeSalaries";
+import PayrollProcessing from "./pages/Payroll/PayrollProcessing";
+import Expenses from "./pages/EmployeeDashboard/Expenses";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -52,6 +56,10 @@ const App = () => (
                         <Route path="/activity-logs" element={<ActivityLogs />} />
                         <Route path="/documents" element={<Documents />} />
                         <Route path="/training" element={<Training />} />
+                        <Route path="/salary-structures" element={<SalaryStructures />} />
+                        <Route path="/employee-salaries" element={<EmployeeSalaries />} />
+                        <Route path="/payroll" element={<PayrollProcessing />} />
+                        <Route path="/expenses" element={<Expenses />} />
                         <Route path="/recruitment" element={<Recruitment />} />
                         <Route path="/announcements" element={<Announcements />} />
                         <Route path="/user-management" element={<UserManagement />} />
