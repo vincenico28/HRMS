@@ -19,11 +19,6 @@ export default function Auth() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [useMagicLink, setUseMagicLink] = useState(false);
-  const [is2FAPending, setIs2FAPending] = useState(false);
-  const [generatedOtp, setGeneratedOtp] = useState<string | null>(null);
-  const [pendingAdminEmail, setPendingAdminEmail] = useState("");
-  const [pendingAdminPassword, setPendingAdminPassword] = useState("");
-  const [otp, setOtp] = useState("");
 
   const passwordRequirements = [
     { regex: /.{8,}/, text: "At least 8 characters" },
@@ -39,51 +34,6 @@ export default function Auth() {
     .filter(Boolean);
 
   const isMagicLinkAdminAllowed = email && adminMagicLinkEmails.includes(email.trim().toLowerCase());
-
-  const sendOtpEmail = async (to: string, code: string) => {
-    if (!(window as any).Email?.send) {
-      throw new Error("Email service not loaded. Ensure smtp.js is present in index.html");
-    }
-
-    await (window as any).Email.send({
-      SecureToken: import.meta.env.VITE_SMTPJS_SECURE_TOKEN,
-      To: to,
-      From: import.meta.env.VITE_OTP_FROM,
-      Subject: "Your HRMS admin login OTP",
-      Body: `Your one-time code is ${code}. It expires in 5 minutes.`,
-    });
-  };
-
-  const handle2FASubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!generatedOtp) {
-      toast({ title: "Error", description: "2FA code not generated", variant: "destructive" });
-      return;
-    }
-    if (otp.trim() !== generatedOtp) {
-      toast({ title: "Invalid 2FA code", description: "Please enter the correct code.", variant: "destructive" });
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithPassword({ email: pendingAdminEmail, password: pendingAdminPassword });
-      if (error) throw error;
-
-      setIs2FAPending(false);
-      setGeneratedOtp(null);
-      setOtp("");
-      setPendingAdminEmail("");
-      setPendingAdminPassword("");
-
-      toast({ title: "2FA Success", description: "Admin login is now complete." });
-      navigate("/");
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,37 +76,6 @@ export default function Auth() {
 
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-
-        const userId = data.user?.id;
-        if (!userId) throw new Error("User not found after login");
-
-        const { data: roleData, error: roleError } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", userId)
-          .maybeSingle();
-
-        if (roleError) throw roleError;
-
-        const role = roleData?.role;
-        if (role === "admin") {
-          const code = Math.floor(100000 + Math.random() * 900000).toString();
-          setGeneratedOtp(code);
-          setPendingAdminEmail(email);
-          setPendingAdminPassword(password);
-          setIs2FAPending(true);
-
-          await sendOtpEmail(email, code);
-          await supabase.auth.signOut();
-
-          toast({
-            title: "Admin 2FA needed",
-            description: "A 2FA code has been sent to your email. Enter it to complete login.",
-          });
-
-          setLoading(false);
-          return;
-        }
 
         navigate("/");
       } else {
@@ -228,31 +147,8 @@ export default function Auth() {
             </p>
           </div>
 
-          <form onSubmit={is2FAPending ? handle2FASubmit : handleSubmit} className="space-y-5">
-            {is2FAPending ? (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="otp">2FA Code</Label>
-                  <Input
-                    id="otp"
-                    type="text"
-                    placeholder="Enter 6-digit code"
-                    maxLength={6}
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
-                    required
-                  />
-                </div>
-                <p className="text-muted-foreground text-sm">
-                  A one-time verification code has been sent to your email. Use it to complete login.
-                </p>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} Verify 2FA
-                </Button>
-              </>
-            ) : (
-              <>
-                {!isLogin && (
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {!isLogin && (
                   <div className="space-y-2">
                     <Label htmlFor="fullName">Full Name</Label>
                     <div className="relative">
@@ -373,23 +269,17 @@ export default function Auth() {
                   {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                   {isLogin ? "Sign In" : "Create Account"}
                 </Button>
-              </>
-            )}
           </form>
 
-          {!is2FAPending ? (
-            <p className="text-center text-sm text-muted-foreground">
-              {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
-              <button
-                onClick={() => setIsLogin(!isLogin)}
-                className="text-primary hover:underline font-medium"
-              >
-                {isLogin ? "Sign up" : "Sign in"}
-              </button>
-            </p>
-          ) : (
-            <p className="text-center text-sm text-muted-foreground">Enter the 2FA code to continue as admin.</p>
-          )}
+          <p className="text-center text-sm text-muted-foreground">
+            {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
+            <button
+              onClick={() => setIsLogin(!isLogin)}
+              className="text-primary hover:underline font-medium"
+            >
+              {isLogin ? "Sign up" : "Sign in"}
+            </button>
+          </p>
         </div>
       </div>
     </div>

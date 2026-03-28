@@ -61,13 +61,44 @@ export interface Notification {
   created_at: string;
 }
 
-export interface ActivityLog {
+export interface OvertimeRequest {
   id: string;
-  user_id: string | null;
-  action: string;
-  details: Record<string, unknown> | null;
-  ip_address: string | null;
+  employee_id: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  hours: number;
+  reason: string | null;
+  status: string;
+  requested_by: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
   created_at: string;
+  updated_at: string;
+}
+
+export interface TimeLog {
+  id: string;
+  employee_id: string;
+  date: string;
+  time_stamp: string;
+  type: string;
+  location: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface AttendanceSummary {
+  employee_id: string;
+  employee_name: string;
+  date: string;
+  status: string;
+  time_in: string | null;
+  time_out: string | null;
+  total_hours: number;
+  late_minutes: number;
+  undertime_minutes: number;
+  overtime_hours: number;
 }
 
 // ─── Employees ───
@@ -181,6 +212,109 @@ export function useCreateAttendance() {
       return data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["attendance"] }),
+  });
+}
+
+// ─── Overtime Requests ───
+export function useOvertimeRequests() {
+  return useQuery({
+    queryKey: ["overtime_requests"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("overtime_requests")
+        .select("*, employees!overtime_requests_employee_id_fkey(full_name)")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as (OvertimeRequest & { employees: { full_name: string } | null })[];
+    },
+  });
+}
+
+export function useCreateOvertimeRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (request: {
+      employee_id: string;
+      date: string;
+      start_time: string;
+      end_time: string;
+      hours: number;
+      reason?: string;
+    }) => {
+      const { data, error } = await supabase.from("overtime_requests").insert(request).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["overtime_requests"] }),
+  });
+}
+
+export function useUpdateOvertimeRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: { id: string; status?: string; reviewed_by?: string; reviewed_at?: string }) => {
+      const { data, error } = await supabase.from("overtime_requests").update(updates).eq("id", id).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["overtime_requests"] }),
+  });
+}
+
+// ─── Time Logs ───
+export function useTimeLogs(employeeId?: string, date?: string) {
+  return useQuery({
+    queryKey: ["time_logs", employeeId, date],
+    queryFn: async () => {
+      let query = supabase
+        .from("time_logs")
+        .select("*, employees(full_name)")
+        .order("time_stamp", { ascending: false });
+
+      if (employeeId) query = query.eq("employee_id", employeeId);
+      if (date) query = query.eq("date", date);
+
+      const { data, error } = await query.limit(100);
+      if (error) throw error;
+      return data as (TimeLog & { employees: { full_name: string } | null })[];
+    },
+  });
+}
+
+export function useCreateTimeLog() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (log: {
+      employee_id: string;
+      type: "in" | "out";
+      location?: string;
+      notes?: string;
+    }) => {
+      const now = new Date();
+      const { data, error } = await supabase.from("time_logs").insert({
+        ...log,
+        time_stamp: now.toISOString(),
+        date: now.toISOString().split("T")[0],
+      }).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["time_logs"] }),
+  });
+}
+
+export function useAttendanceSummary(employeeId?: string, startDate?: string, endDate?: string) {
+  return useQuery({
+    queryKey: ["attendance_summary", employeeId, startDate, endDate],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_attendance_summary", {
+        p_employee_id: employeeId || null,
+        p_start_date: startDate || null,
+        p_end_date: endDate || null,
+      });
+      if (error) throw error;
+      return data as AttendanceSummary[];
+    },
   });
 }
 

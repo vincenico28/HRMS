@@ -250,6 +250,7 @@ export type Database = {
       employees: {
         Row: {
           address: string | null
+          break_duration: number | null
           created_at: string
           date_hired: string
           department_id: string | null
@@ -263,9 +264,12 @@ export type Database = {
           status: string
           updated_at: string
           user_id: string | null
+          work_end_time: string | null
+          work_start_time: string | null
         }
         Insert: {
           address?: string | null
+          break_duration?: number | null
           created_at?: string
           date_hired?: string
           department_id?: string | null
@@ -279,9 +283,12 @@ export type Database = {
           status?: string
           updated_at?: string
           user_id?: string | null
+          work_end_time?: string | null
+          work_start_time?: string | null
         }
         Update: {
           address?: string | null
+          break_duration?: number | null
           created_at?: string
           date_hired?: string
           department_id?: string | null
@@ -295,6 +302,8 @@ export type Database = {
           status?: string
           updated_at?: string
           user_id?: string | null
+          work_end_time?: string | null
+          work_start_time?: string | null
         }
         Relationships: [
           {
@@ -633,6 +642,117 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      overtime_requests: {
+        Row: {
+          created_at: string
+          date: string
+          employee_id: string
+          end_time: string
+          hours: number
+          id: string
+          reason: string | null
+          requested_by: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          start_time: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          employee_id: string
+          end_time: string
+          hours: number
+          id?: string
+          reason?: string | null
+          requested_by?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          start_time: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          employee_id?: string
+          end_time?: string
+          hours?: number
+          id?: string
+          reason?: string | null
+          requested_by?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          start_time?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "overtime_requests_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "overtime_requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "overtime_requests_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      time_logs: {
+        Row: {
+          created_at: string
+          date: string
+          employee_id: string
+          id: string
+          location: string | null
+          notes: string | null
+          time_stamp: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          date?: string
+          employee_id: string
+          id?: string
+          location?: string | null
+          notes?: string | null
+          time_stamp?: string
+          type: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          employee_id?: string
+          id?: string
+          location?: string | null
+          notes?: string | null
+          time_stamp?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "time_logs_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
